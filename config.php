@@ -232,6 +232,13 @@ function formatRupiah($amount) {
 }
 
 /**
+ * Date formatting
+ */
+function formatDate($date, $format = 'd/m/Y H:i') {
+    return date($format, strtotime($date));
+}
+
+/**
  * Get current timestamp
  */
 function getCurrentTimestamp() {
@@ -243,6 +250,25 @@ function getCurrentTimestamp() {
  */
 function generateRandomString($length = 10) {
     return bin2hex(random_bytes($length));
+}
+
+/**
+ * Generate unique order number
+ */
+function generateOrderNumber() {
+    $prefix = ORDER_PREFIX;
+    $date = date('ymd');
+    
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURDATE()");
+        $stmt->execute();
+        $count = $stmt->fetchColumn() + 1;
+        
+        return $prefix . $date . str_pad($count, 3, '0', STR_PAD_LEFT);
+    } catch (Exception $e) {
+        return $prefix . $date . str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
+    }
 }
 
 /**
@@ -263,6 +289,122 @@ function safeRedirect($url) {
     exit();
 }
 
+/**
+ * Sanitize input
+ */
+function sanitizeInput($input) {
+    return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
+}
+
+/**
+ * Validate email
+ */
+function isValidEmail($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+/**
+ * Validate phone number (Indonesian format)
+ */
+function isValidPhone($phone) {
+    // Remove non-numeric characters
+    $phone = preg_replace('/[^0-9]/', '', $phone);
+    
+    // Check if it's a valid Indonesian phone number
+    return preg_match('/^(08|628|\+628)[0-9]{8,12}$/', $phone);
+}
+
+/**
+ * Hash password
+ */
+function hashPassword($password) {
+    return password_hash($password, PASSWORD_DEFAULT);
+}
+
+/**
+ * Generate SKU
+ */
+function generateSKU($prefix = 'PRD') {
+    return $prefix . date('y') . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+}
+
+/**
+ * File upload handler
+ */
+function uploadFile($file, $directory, $allowed_types = ['jpg', 'jpeg', 'png', 'gif']) {
+    if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+        throw new Exception('Upload error: ' . $file['error']);
+    }
+    
+    if ($file['size'] > MAX_FILE_SIZE) {
+        throw new Exception('File too large. Maximum size: ' . (MAX_FILE_SIZE / 1024 / 1024) . 'MB');
+    }
+    
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowed_types)) {
+        throw new Exception('Invalid file type. Allowed: ' . implode(', ', $allowed_types));
+    }
+    
+    $filename = uniqid() . '.' . $extension;
+    $filepath = $directory . $filename;
+    
+    if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+        throw new Exception('Failed to move uploaded file');
+    }
+    
+    return $filename;
+}
+
+/**
+ * Delete file safely
+ */
+function deleteFile($filepath) {
+    if (file_exists($filepath) && is_file($filepath)) {
+        return unlink($filepath);
+    }
+    return false;
+}
+
+/**
+ * Log activity
+ */
+function logActivity($action, $description, $admin_id = null) {
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("
+            INSERT INTO activity_logs (admin_id, action, description, ip_address, user_agent, created_at)
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([
+            $admin_id ?? ($_SESSION['admin_id'] ?? null),
+            $action,
+            $description,
+            $_SERVER['REMOTE_ADDR'] ?? '',
+            $_SERVER['HTTP_USER_AGENT'] ?? ''
+        ]);
+    } catch (Exception $e) {
+        error_log("Error logging activity: " . $e->getMessage());
+    }
+}
+
+/**
+ * Send email (placeholder for future implementation)
+ */
+function sendEmail($to, $subject, $message, $from = null) {
+    // TODO: Implement email sending using PHPMailer or similar
+    error_log("Email would be sent to: $to, Subject: $subject");
+    return true;
+}
+
+/**
+ * Send WhatsApp message (placeholder for future implementation)
+ */
+function sendWhatsApp($phone, $message) {
+    // TODO: Implement WhatsApp API integration
+    error_log("WhatsApp would be sent to: $phone, Message: $message");
+    return true;
+}
+
 // Auto-load additional config files if they exist
 $additional_configs = [
     'config-local.php',  // For local overrides
@@ -274,5 +416,4 @@ foreach ($additional_configs as $config_file) {
         require_once $config_file;
     }
 }
-
 ?>
