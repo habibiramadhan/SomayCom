@@ -75,7 +75,7 @@ try {
         </a>
         
         <!-- Shipping Areas -->
-        <a href="<?php echo getAdminPath(); ?>shipping_areas.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'shipping_areas.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>shipping_area.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo ($current_page === 'shipping_area.php' || strpos($_SERVER['REQUEST_URI'], '/shipping_area') !== false) ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-truck w-6"></i>
             <span>Area Pengiriman</span>
         </a>
