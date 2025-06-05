@@ -1,3 +1,4 @@
+<!-- config.php -->
 <?php
 /**
  * Configuration File for Somay POS Ecommerce
@@ -31,7 +32,7 @@ define('PRODUCT_IMAGE_PATH', UPLOAD_PATH . 'products/');
 define('PAYMENT_PROOF_PATH', UPLOAD_PATH . 'payments/');
 
 // File Upload Settings
-define('MAX_FILE_SIZE', 10 * 1024 * 1024); // Ubah jadi 10MB
+define('MAX_FILE_SIZE', 10 * 1024 * 1024); // 10MB
 define('ALLOWED_IMAGE_TYPES', ['jpg', 'jpeg', 'png', 'gif', 'webp']);
 
 // App Settings
@@ -48,13 +49,13 @@ define('SITE_ADDRESS', 'Tangerang Selatan, Banten');
 
 // Order Settings
 define('ORDER_PREFIX', 'ORD');
-define('ORDER_EXPIRY_HOURS', 24); // Order expires after 24 hours if not paid
+define('ORDER_EXPIRY_HOURS', 24);
 
 // Security Settings
-define('ADMIN_SESSION_TIMEOUT', 3600); // 1 hour
+define('ADMIN_SESSION_TIMEOUT', 3600);
 define('PASSWORD_MIN_LENGTH', 6);
 
-// Email Configuration (if needed later)
+// Email Configuration
 define('SMTP_HOST', 'smtp.gmail.com');
 define('SMTP_PORT', 587);
 define('SMTP_USERNAME', '');
@@ -62,7 +63,6 @@ define('SMTP_PASSWORD', '');
 
 /**
  * Database Connection Function
- * Returns PDO connection object with error handling
  */
 function getDB() {
     static $pdo = null;
@@ -78,7 +78,6 @@ function getDB() {
             
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
-            // Log error (in production, don't show actual error)
             error_log("Database Connection Error: " . $e->getMessage());
             die("Database connection failed. Please try again later.");
         }
@@ -89,7 +88,6 @@ function getDB() {
 
 /**
  * Test Database Connection
- * Returns true if connection successful
  */
 function testDBConnection() {
     try {
@@ -102,8 +100,7 @@ function testDBConnection() {
 }
 
 /**
- * Get App Setting from Database
- * Fallback to default if not found
+ * Get App Setting from Database with caching
  */
 function getAppSetting($key, $default = null) {
     static $settings = null;
@@ -112,12 +109,11 @@ function getAppSetting($key, $default = null) {
         $settings = [];
         try {
             $pdo = getDB();
-            $stmt = $pdo->query("SELECT setting_key, setting_value FROM app_settings WHERE is_editable = 1");
+            $stmt = $pdo->query("SELECT setting_key, setting_value FROM app_settings");
             while ($row = $stmt->fetch()) {
                 $settings[$row['setting_key']] = $row['setting_value'];
             }
         } catch (Exception $e) {
-            // If table doesn't exist yet, return empty array
             error_log("Settings table not found: " . $e->getMessage());
         }
     }
@@ -128,20 +124,133 @@ function getAppSetting($key, $default = null) {
 /**
  * Update App Setting in Database
  */
-function updateAppSetting($key, $value) {
+function updateAppSetting($key, $value, $type = 'string') {
     try {
         $pdo = getDB();
         $stmt = $pdo->prepare("
-            INSERT INTO app_settings (setting_key, setting_value, updated_at) 
-            VALUES (?, ?, NOW()) 
+            INSERT INTO app_settings (setting_key, setting_value, setting_type, updated_at) 
+            VALUES (?, ?, ?, NOW()) 
             ON DUPLICATE KEY UPDATE 
             setting_value = VALUES(setting_value), 
+            setting_type = VALUES(setting_type),
             updated_at = VALUES(updated_at)
         ");
-        return $stmt->execute([$key, $value]);
+        return $stmt->execute([$key, $value, $type]);
     } catch (Exception $e) {
         error_log("Error updating setting: " . $e->getMessage());
         return false;
+    }
+}
+
+/**
+ * Get multiple app settings at once
+ */
+function getAppSettings($keys = []) {
+    try {
+        $pdo = getDB();
+        
+        if (empty($keys)) {
+            // Get all settings
+            $stmt = $pdo->query("SELECT setting_key, setting_value FROM app_settings");
+        } else {
+            // Get specific settings
+            $placeholders = str_repeat('?,', count($keys) - 1) . '?';
+            $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ($placeholders)");
+            $stmt->execute($keys);
+        }
+        
+        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    } catch (Exception $e) {
+        error_log("Error getting settings: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Get dynamic site configuration from database
+ */
+function getSiteConfig() {
+    static $config = null;
+    
+    if ($config === null) {
+        $config = getAppSettings([
+            'site_name',
+            'site_phone', 
+            'site_email',
+            'site_address',
+            'whatsapp_number',
+            'min_order_amount',
+            'free_shipping_min',
+            'order_prefix',
+            'meta_title',
+            'meta_description',
+            'meta_keywords'
+        ]);
+        
+        // Set defaults if not found
+        $defaults = [
+            'site_name' => SITE_NAME,
+            'site_phone' => SITE_PHONE,
+            'site_email' => SITE_EMAIL,
+            'site_address' => SITE_ADDRESS,
+            'whatsapp_number' => WHATSAPP_NUMBER,
+            'min_order_amount' => MIN_ORDER_AMOUNT,
+            'free_shipping_min' => FREE_SHIPPING_MIN,
+            'order_prefix' => ORDER_PREFIX,
+            'meta_title' => SITE_NAME . ' - Distributor Somay Terlengkap',
+            'meta_description' => 'Distributor somay dan siomay terpercaya dengan pengiriman cepat se-Tangerang Selatan',
+            'meta_keywords' => 'somay, siomay, distributor, tangerang selatan'
+        ];
+        
+        foreach ($defaults as $key => $value) {
+            if (!isset($config[$key])) {
+                $config[$key] = $value;
+            }
+        }
+    }
+    
+    return $config;
+}
+
+/**
+ * Initialize default app settings
+ */
+function initializeAppSettings() {
+    $defaultSettings = [
+        'site_name' => [SITE_NAME, 'string', 'Nama website'],
+        'site_phone' => [SITE_PHONE, 'string', 'Nomor telepon toko'],
+        'site_email' => [SITE_EMAIL, 'string', 'Email toko'],
+        'site_address' => [SITE_ADDRESS, 'string', 'Alamat toko'],
+        'min_order_amount' => [MIN_ORDER_AMOUNT, 'number', 'Minimal pembelian'],
+        'free_shipping_min' => [FREE_SHIPPING_MIN, 'number', 'Minimal gratis ongkir'],
+        'order_prefix' => [ORDER_PREFIX, 'string', 'Prefix nomor order'],
+        'order_expiry_hours' => [ORDER_EXPIRY_HOURS, 'number', 'Jam kadaluarsa order'],
+        'whatsapp_number' => [WHATSAPP_NUMBER, 'string', 'Nomor WhatsApp customer service'],
+        'whatsapp_order_message' => ['Halo, saya ingin konfirmasi pesanan dengan nomor: {order_number}', 'string', 'Template pesan WhatsApp order'],
+        'meta_title' => [SITE_NAME . ' - Distributor Somay Terlengkap', 'string', 'Meta title untuk SEO'],
+        'meta_description' => ['Distributor somay dan siomay terpercaya dengan pengiriman cepat se-Tangerang Selatan', 'string', 'Meta description untuk SEO'],
+        'meta_keywords' => ['somay, siomay, distributor, tangerang selatan', 'string', 'Meta keywords untuk SEO'],
+        'smtp_host' => [SMTP_HOST, 'string', 'SMTP Host untuk email'],
+        'smtp_port' => [SMTP_PORT, 'number', 'SMTP Port'],
+        'smtp_username' => [SMTP_USERNAME, 'string', 'SMTP Username'],
+        'smtp_password' => [SMTP_PASSWORD, 'string', 'SMTP Password'],
+        'facebook_url' => ['', 'string', 'URL Facebook'],
+        'instagram_url' => ['', 'string', 'URL Instagram'],
+        'twitter_url' => ['', 'string', 'URL Twitter']
+    ];
+    
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("
+            INSERT IGNORE INTO app_settings (setting_key, setting_value, setting_type, description, is_editable, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, 1, NOW(), NOW())
+        ");
+        
+        foreach ($defaultSettings as $key => $data) {
+            $stmt->execute([$key, $data[0], $data[1], $data[2]]);
+        }
+    } catch (Exception $e) {
+        error_log("Error initializing settings: " . $e->getMessage());
     }
 }
 
@@ -158,14 +267,12 @@ function createDirectories() {
     foreach ($directories as $dir) {
         if (!is_dir($dir)) {
             try {
-                // Cek apakah parent directory writable
                 $parentDir = dirname($dir);
                 if (!is_writable($parentDir)) {
                     error_log("Parent directory is not writable: " . $parentDir);
                     continue;
                 }
                 
-                // Coba buat directory dengan permission yang benar
                 if (!@mkdir($dir, 0755, true)) {
                     $error = error_get_last();
                     error_log("Failed to create directory: " . $dir . " - Error: " . $error['message']);
@@ -179,23 +286,19 @@ function createDirectories() {
 
 /**
  * Initialize Application
- * Create directories and check database connection
  */
 function initializeApp() {
-    // Set error reporting
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
     
-    // Set timezone
     date_default_timezone_set('Asia/Jakarta');
     
-    // Test database connection
     if (!testDBConnection()) {
         die("Cannot connect to database. Please check your configuration.");
     }
     
-    // Create upload directories
     createDirectories();
+    initializeAppSettings();
 }
 
 // Auto-initialize when config is loaded
@@ -256,7 +359,7 @@ function generateRandomString($length = 10) {
  * Generate unique order number
  */
 function generateOrderNumber() {
-    $prefix = ORDER_PREFIX;
+    $prefix = getAppSetting('order_prefix', ORDER_PREFIX);
     $date = date('ymd');
     
     try {
@@ -275,9 +378,7 @@ function generateOrderNumber() {
  * Safe redirect function
  */
 function safeRedirect($url) {
-    // Prevent open redirect attacks
     if (strpos($url, 'http') === 0) {
-        // Only allow redirects to same domain
         $parsed = parse_url($url);
         $current_host = $_SERVER['HTTP_HOST'];
         if ($parsed['host'] !== $current_host) {
@@ -307,10 +408,7 @@ function isValidEmail($email) {
  * Validate phone number (Indonesian format)
  */
 function isValidPhone($phone) {
-    // Remove non-numeric characters
     $phone = preg_replace('/[^0-9]/', '', $phone);
-    
-    // Check if it's a valid Indonesian phone number
     return preg_match('/^(08|628|\+628)[0-9]{8,12}$/', $phone);
 }
 
@@ -329,10 +427,9 @@ function generateSKU($prefix = 'PRD') {
 }
 
 /**
- * File upload handler
+ * File upload handler with improved error handling
  */
 function uploadFile($file, $directory, $allowed_types = ['jpg', 'jpeg', 'png', 'gif', 'webp']) {
-    // Validasi error upload
     if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
         $upload_errors = [
             UPLOAD_ERR_INI_SIZE => 'File terlalu besar (php.ini limit)',
@@ -348,18 +445,15 @@ function uploadFile($file, $directory, $allowed_types = ['jpg', 'jpeg', 'png', '
         throw new Exception($error_msg);
     }
     
-    // Validasi ukuran file
     if ($file['size'] > MAX_FILE_SIZE) {
         $max_size_mb = MAX_FILE_SIZE / 1024 / 1024;
         throw new Exception("File terlalu besar. Maksimal {$max_size_mb}MB");
     }
     
-    // Validasi file kosong
     if ($file['size'] == 0) {
         throw new Exception('File kosong atau tidak valid');
     }
     
-    // Validasi dan dapatkan extension
     $original_name = $file['name'];
     $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
     
@@ -371,7 +465,6 @@ function uploadFile($file, $directory, $allowed_types = ['jpg', 'jpeg', 'png', '
         throw new Exception('Tipe file tidak diizinkan. Hanya: ' . implode(', ', $allowed_types));
     }
     
-    // Validasi tipe MIME untuk keamanan
     $allowed_mimes = [
         'jpg' => 'image/jpeg',
         'jpeg' => 'image/jpeg', 
@@ -390,42 +483,34 @@ function uploadFile($file, $directory, $allowed_types = ['jpg', 'jpeg', 'png', '
         }
     }
     
-    // Pastikan directory ada
     if (!is_dir($directory)) {
         if (!mkdir($directory, 0755, true)) {
             throw new Exception('Gagal membuat directory: ' . $directory);
         }
     }
     
-    // Cek permission directory
     if (!is_writable($directory)) {
         throw new Exception('Directory tidak writable: ' . $directory);
     }
     
-    // Generate nama file unik
     $filename = generateUniqueFilename($original_name, $directory);
     $filepath = $directory . $filename;
     
-    // Pindahkan file
     if (!move_uploaded_file($file['tmp_name'], $filepath)) {
         throw new Exception('Gagal memindahkan file ke: ' . $filepath);
     }
     
-    // Validasi file berhasil dipindahkan dan bisa dibaca
     if (!file_exists($filepath) || !is_readable($filepath)) {
         throw new Exception('File upload gagal atau tidak bisa dibaca');
     }
     
-    // Untuk gambar, validasi tambahan
     if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
         $image_info = getimagesize($filepath);
         if ($image_info === false) {
-            // Hapus file yang tidak valid
             unlink($filepath);
             throw new Exception('File bukan gambar yang valid');
         }
         
-        // Cek dimensi minimum (opsional)
         $min_width = 50;
         $min_height = 50;
         if ($image_info[0] < $min_width || $image_info[1] < $min_height) {
@@ -444,16 +529,13 @@ function generateUniqueFilename($original_name, $directory) {
     $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
     $base_name = pathinfo($original_name, PATHINFO_FILENAME);
     
-    // Bersihkan nama file dari karakter tidak aman
     $base_name = preg_replace('/[^a-zA-Z0-9-_]/', '', $base_name);
-    $base_name = substr($base_name, 0, 50); // Batasi panjang
+    $base_name = substr($base_name, 0, 50);
     
-    // Generate nama dengan timestamp dan random
     $timestamp = time();
     $random = substr(md5(uniqid(rand(), true)), 0, 8);
     $filename = $base_name . '_' . $timestamp . '_' . $random . '.' . $extension;
     
-    // Pastikan file tidak ada (double check)
     $counter = 1;
     $original_filename = $filename;
     while (file_exists($directory . $filename)) {
@@ -472,12 +554,10 @@ function deleteFile($filepath) {
         return false;
     }
     
-    // Pastikan file ada dan di dalam directory yang diizinkan
     if (!file_exists($filepath) || !is_file($filepath)) {
         return false;
     }
     
-    // Validasi path untuk keamanan (tidak boleh keluar dari upload directory)
     $real_path = realpath($filepath);
     $upload_real_path = realpath(UPLOAD_PATH);
     
@@ -491,127 +571,6 @@ function deleteFile($filepath) {
     }
     
     return unlink($filepath);
-}
-
-/**
- * Get file size in human readable format
- */
-function formatFileSize($bytes) {
-    if ($bytes >= 1073741824) {
-        return number_format($bytes / 1073741824, 2) . ' GB';
-    } elseif ($bytes >= 1048576) {
-        return number_format($bytes / 1048576, 2) . ' MB';
-    } elseif ($bytes >= 1024) {
-        return number_format($bytes / 1024, 2) . ' KB';
-    } else {
-        return $bytes . ' bytes';
-    }
-}
-
-/**
- * Validate image and get info
- */
-function validateImage($filepath) {
-    if (!file_exists($filepath)) {
-        return false;
-    }
-    
-    $image_info = getimagesize($filepath);
-    if ($image_info === false) {
-        return false;
-    }
-    
-    return [
-        'width' => $image_info[0],
-        'height' => $image_info[1],
-        'type' => $image_info[2],
-        'mime' => $image_info['mime'],
-        'size' => filesize($filepath),
-        'size_formatted' => formatFileSize(filesize($filepath))
-    ];
-}
-
-/**
- * Resize image (opsional untuk optimasi)
- */
-function resizeImage($source_path, $destination_path, $max_width = 800, $max_height = 600, $quality = 85) {
-    $image_info = getimagesize($source_path);
-    if ($image_info === false) {
-        return false;
-    }
-    
-    $original_width = $image_info[0];
-    $original_height = $image_info[1];
-    $image_type = $image_info[2];
-    
-    // Hitung dimensi baru dengan mempertahankan aspect ratio
-    $ratio = min($max_width / $original_width, $max_height / $original_height);
-    $new_width = round($original_width * $ratio);
-    $new_height = round($original_height * $ratio);
-    
-    // Jika sudah kecil, tidak perlu resize
-    if ($ratio >= 1) {
-        return copy($source_path, $destination_path);
-    }
-    
-    // Buat resource gambar sesuai tipe
-    switch ($image_type) {
-        case IMAGETYPE_JPEG:
-            $source_image = imagecreatefromjpeg($source_path);
-            break;
-        case IMAGETYPE_PNG:
-            $source_image = imagecreatefrompng($source_path);
-            break;
-        case IMAGETYPE_GIF:
-            $source_image = imagecreatefromgif($source_path);
-            break;
-        case IMAGETYPE_WEBP:
-            $source_image = imagecreatefromwebp($source_path);
-            break;
-        default:
-            return false;
-    }
-    
-    if (!$source_image) {
-        return false;
-    }
-    
-    // Buat canvas baru
-    $new_image = imagecreatetruecolor($new_width, $new_height);
-    
-    // Untuk PNG dan GIF, pertahankan transparency
-    if ($image_type == IMAGETYPE_PNG || $image_type == IMAGETYPE_GIF) {
-        imagealphablending($new_image, false);
-        imagesavealpha($new_image, true);
-        $transparent = imagecolorallocatealpha($new_image, 255, 255, 255, 127);
-        imagefilledrectangle($new_image, 0, 0, $new_width, $new_height, $transparent);
-    }
-    
-    // Resize
-    imagecopyresampled($new_image, $source_image, 0, 0, 0, 0, $new_width, $new_height, $original_width, $original_height);
-    
-    // Simpan hasil resize
-    $result = false;
-    switch ($image_type) {
-        case IMAGETYPE_JPEG:
-            $result = imagejpeg($new_image, $destination_path, $quality);
-            break;
-        case IMAGETYPE_PNG:
-            $result = imagepng($new_image, $destination_path, 9);
-            break;
-        case IMAGETYPE_GIF:
-            $result = imagegif($new_image, $destination_path);
-            break;
-        case IMAGETYPE_WEBP:
-            $result = imagewebp($new_image, $destination_path, $quality);
-            break;
-    }
-    
-    // Cleanup
-    imagedestroy($source_image);
-    imagedestroy($new_image);
-    
-    return $result;
 }
 
 /**
@@ -637,27 +596,50 @@ function logActivity($action, $description, $admin_id = null) {
 }
 
 /**
- * Send email (placeholder for future implementation)
+ * Send email using dynamic SMTP settings
  */
 function sendEmail($to, $subject, $message, $from = null) {
-    // TODO: Implement email sending using PHPMailer or similar
+    $settings = getAppSettings(['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'site_email']);
+    
+    if (empty($settings['smtp_host']) || empty($settings['smtp_username'])) {
+        error_log("SMTP settings not configured");
+        return false;
+    }
+    
+    // TODO: Implement email sending using PHPMailer with dynamic settings
     error_log("Email would be sent to: $to, Subject: $subject");
     return true;
 }
 
 /**
- * Send WhatsApp message (placeholder for future implementation)
+ * Send WhatsApp message using configured number
  */
 function sendWhatsApp($phone, $message) {
+    $whatsapp_number = getAppSetting('whatsapp_number', WHATSAPP_NUMBER);
+    
     // TODO: Implement WhatsApp API integration
     error_log("WhatsApp would be sent to: $phone, Message: $message");
     return true;
 }
 
+/**
+ * Format WhatsApp order message with variables
+ */
+function formatWhatsAppMessage($template, $variables = []) {
+    $defaultTemplate = "Halo, saya ingin konfirmasi pesanan dengan nomor: {order_number}";
+    $message = $template ?: $defaultTemplate;
+    
+    foreach ($variables as $key => $value) {
+        $message = str_replace('{' . $key . '}', $value, $message);
+    }
+    
+    return $message;
+}
+
 // Auto-load additional config files if they exist
 $additional_configs = [
-    'config-local.php',  // For local overrides
-    'config-custom.php'  // For custom settings
+    'config-local.php',
+    'config-custom.php'
 ];
 
 foreach ($additional_configs as $config_file) {

@@ -1,3 +1,4 @@
+<!-- admin/auth_check.php -->
 <?php
 // Pastikan session dimulai
 if (session_status() == PHP_SESSION_NONE) {
@@ -151,13 +152,22 @@ function hasPermission($action) {
             'manage_orders',
             'manage_categories',
             'manage_customers',
-            'view_reports'
+            'manage_shipping_areas',
+            'manage_contact_messages',
+            'view_stock_movements',
+            'view_reports',
+            'manage_settings' // Admin dapat mengubah settings
         ],
         'operator' => [
             'view_dashboard',
             'view_products',
             'manage_orders',
-            'view_customers'
+            'view_customers',
+            'view_shipping_areas',
+            'view_contact_messages',
+            'view_stock_movements',
+            'view_reports' // Operator dapat melihat reports
+            // Operator tidak dapat mengubah settings
         ]
     ];
 
