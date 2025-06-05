@@ -16,10 +16,14 @@ try {
     $stmt->execute();
     $low_stock_products = $stmt->fetchColumn();
     
-    // Pesan kontak baru
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM contact_messages WHERE status = 'new'");
-    $stmt->execute();
-    $new_messages = $stmt->fetchColumn();
+    // Pesan kontak baru (jika tabel ada)
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM contact_messages WHERE status = 'new'");
+        $stmt->execute();
+        $new_messages = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        $new_messages = 0;
+    }
     
 } catch (Exception $e) {
     $pending_orders = 0;
@@ -40,13 +44,13 @@ try {
     
     <nav class="mt-6">
         <!-- Dashboard -->
-        <a href="dashboard.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'dashboard.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>dashboard.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'dashboard.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-home w-6"></i>
             <span>Dashboard</span>
         </a>
         
         <!-- Products -->
-        <a href="products.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'products.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>product.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo ($current_page === 'product.php' || strpos($_SERVER['REQUEST_URI'], '/product') !== false) ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-box w-6"></i>
             <span>Produk</span>
             <?php if ($low_stock_products > 0): ?>
@@ -55,7 +59,7 @@ try {
         </a>
         
         <!-- Orders -->
-        <a href="orders.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'orders.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>orders.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'orders.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-shopping-cart w-6"></i>
             <span>Pesanan</span>
             <?php if ($pending_orders > 0): ?>
@@ -64,25 +68,25 @@ try {
         </a>
         
         <!-- Categories -->
-        <a href="categories.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'categories.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>categories.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'categories.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-tags w-6"></i>
             <span>Kategori</span>
         </a>
         
         <!-- Shipping Areas -->
-        <a href="shipping_areas.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'shipping_areas.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>shipping_areas.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'shipping_areas.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-truck w-6"></i>
             <span>Area Pengiriman</span>
         </a>
         
         <!-- Customers -->
-        <a href="customers.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'customers.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>customers.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'customers.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-users w-6"></i>
             <span>Pelanggan</span>
         </a>
         
         <!-- Contact Messages -->
-        <a href="contact_messages.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'contact_messages.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>contact_messages.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'contact_messages.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-envelope w-6"></i>
             <span>Pesan Kontak</span>
             <?php if ($new_messages > 0): ?>
@@ -91,7 +95,7 @@ try {
         </a>
         
         <!-- Stock Movements -->
-        <a href="stock_movements.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'stock_movements.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>stock_movements.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'stock_movements.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-exchange-alt w-6"></i>
             <span>Riwayat Stok</span>
         </a>
@@ -100,7 +104,7 @@ try {
         <div class="border-t border-gray-700 my-4"></div>
         
         <!-- Settings -->
-        <a href="settings.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'settings.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+        <a href="<?php echo getAdminPath(); ?>settings.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'settings.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-cog w-6"></i>
             <span>Pengaturan</span>
         </a>
@@ -112,13 +116,28 @@ try {
                     <i class="fas fa-user text-white"></i>
                 </div>
                 <div class="flex-1">
-                    <p class="text-sm font-medium text-white"><?php echo htmlspecialchars($_SESSION['admin_name']); ?></p>
-                    <p class="text-xs text-gray-400"><?php echo ucfirst($_SESSION['admin_role']); ?></p>
+                    <p class="text-sm font-medium text-white"><?php echo htmlspecialchars($_SESSION['admin_name'] ?? 'Admin'); ?></p>
+                    <p class="text-xs text-gray-400"><?php echo ucfirst($_SESSION['admin_role'] ?? 'admin'); ?></p>
                 </div>
-                <a href="logout.php" class="text-gray-400 hover:text-red-400 transition-colors" title="Logout">
+                <a href="<?php echo getAdminPath(); ?>logout.php" class="text-gray-400 hover:text-red-400 transition-colors" title="Logout">
                     <i class="fas fa-sign-out-alt"></i>
                 </a>
             </div>
         </div>
     </nav>
 </div>
+
+<?php
+/**
+ * Helper function to get admin path based on current location
+ */
+function getAdminPath() {
+    // Jika kita di subfolder (seperti /product/), kembali ke admin root
+    if (strpos($_SERVER['REQUEST_URI'], '/product/') !== false || 
+        strpos($_SERVER['PHP_SELF'], '/product/') !== false) {
+        return '../';
+    }
+    // Jika sudah di admin root
+    return '';
+}
+?>

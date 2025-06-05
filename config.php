@@ -22,16 +22,16 @@ define('DB_CHARSET', 'utf8mb4');
 
 // Application Configuration
 define('SITE_NAME', 'Somay Ecommerce');
-define('SITE_URL', 'http://localhost/somay-pos');
+define('SITE_URL', 'http://localhost/somaycom');
 define('ADMIN_URL', SITE_URL . '/admin');
 
 // Path Configuration
-define('UPLOAD_PATH', 'uploads/');
+define('UPLOAD_PATH', $_SERVER['DOCUMENT_ROOT'] . '/somaycom/uploads/');
 define('PRODUCT_IMAGE_PATH', UPLOAD_PATH . 'products/');
 define('PAYMENT_PROOF_PATH', UPLOAD_PATH . 'payments/');
 
 // File Upload Settings
-define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
+define('MAX_FILE_SIZE', 10 * 1024 * 1024); // Ubah jadi 10MB
 define('ALLOWED_IMAGE_TYPES', ['jpg', 'jpeg', 'png', 'gif', 'webp']);
 
 // App Settings
@@ -331,38 +331,287 @@ function generateSKU($prefix = 'PRD') {
 /**
  * File upload handler
  */
-function uploadFile($file, $directory, $allowed_types = ['jpg', 'jpeg', 'png', 'gif']) {
+function uploadFile($file, $directory, $allowed_types = ['jpg', 'jpeg', 'png', 'gif', 'webp']) {
+    // Validasi error upload
     if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
-        throw new Exception('Upload error: ' . $file['error']);
+        $upload_errors = [
+            UPLOAD_ERR_INI_SIZE => 'File terlalu besar (php.ini limit)',
+            UPLOAD_ERR_FORM_SIZE => 'File terlalu besar (form limit)', 
+            UPLOAD_ERR_PARTIAL => 'File hanya terupload sebagian',
+            UPLOAD_ERR_NO_FILE => 'Tidak ada file yang diupload',
+            UPLOAD_ERR_NO_TMP_DIR => 'Folder temporary tidak ada',
+            UPLOAD_ERR_CANT_WRITE => 'Gagal menulis file ke disk',
+            UPLOAD_ERR_EXTENSION => 'Upload dihentikan oleh extension'
+        ];
+        
+        $error_msg = $upload_errors[$file['error']] ?? 'Upload error: ' . $file['error'];
+        throw new Exception($error_msg);
     }
     
+    // Validasi ukuran file
     if ($file['size'] > MAX_FILE_SIZE) {
-        throw new Exception('File too large. Maximum size: ' . (MAX_FILE_SIZE / 1024 / 1024) . 'MB');
+        $max_size_mb = MAX_FILE_SIZE / 1024 / 1024;
+        throw new Exception("File terlalu besar. Maksimal {$max_size_mb}MB");
     }
     
-    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    // Validasi file kosong
+    if ($file['size'] == 0) {
+        throw new Exception('File kosong atau tidak valid');
+    }
+    
+    // Validasi dan dapatkan extension
+    $original_name = $file['name'];
+    $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+    
+    if (empty($extension)) {
+        throw new Exception('File harus memiliki extension');
+    }
+    
     if (!in_array($extension, $allowed_types)) {
-        throw new Exception('Invalid file type. Allowed: ' . implode(', ', $allowed_types));
+        throw new Exception('Tipe file tidak diizinkan. Hanya: ' . implode(', ', $allowed_types));
     }
     
-    $filename = uniqid() . '.' . $extension;
+    // Validasi tipe MIME untuk keamanan
+    $allowed_mimes = [
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg', 
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp'
+    ];
+    
+    if (isset($allowed_mimes[$extension])) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime_type = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        
+        if ($mime_type !== $allowed_mimes[$extension]) {
+            throw new Exception('Tipe file tidak sesuai dengan extension');
+        }
+    }
+    
+    // Pastikan directory ada
+    if (!is_dir($directory)) {
+        if (!mkdir($directory, 0755, true)) {
+            throw new Exception('Gagal membuat directory: ' . $directory);
+        }
+    }
+    
+    // Cek permission directory
+    if (!is_writable($directory)) {
+        throw new Exception('Directory tidak writable: ' . $directory);
+    }
+    
+    // Generate nama file unik
+    $filename = generateUniqueFilename($original_name, $directory);
     $filepath = $directory . $filename;
     
+    // Pindahkan file
     if (!move_uploaded_file($file['tmp_name'], $filepath)) {
-        throw new Exception('Failed to move uploaded file');
+        throw new Exception('Gagal memindahkan file ke: ' . $filepath);
+    }
+    
+    // Validasi file berhasil dipindahkan dan bisa dibaca
+    if (!file_exists($filepath) || !is_readable($filepath)) {
+        throw new Exception('File upload gagal atau tidak bisa dibaca');
+    }
+    
+    // Untuk gambar, validasi tambahan
+    if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+        $image_info = getimagesize($filepath);
+        if ($image_info === false) {
+            // Hapus file yang tidak valid
+            unlink($filepath);
+            throw new Exception('File bukan gambar yang valid');
+        }
+        
+        // Cek dimensi minimum (opsional)
+        $min_width = 50;
+        $min_height = 50;
+        if ($image_info[0] < $min_width || $image_info[1] < $min_height) {
+            unlink($filepath);
+            throw new Exception("Gambar terlalu kecil. Minimal {$min_width}x{$min_height}px");
+        }
     }
     
     return $filename;
 }
 
 /**
- * Delete file safely
+ * Generate unique filename
+ */
+function generateUniqueFilename($original_name, $directory) {
+    $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+    $base_name = pathinfo($original_name, PATHINFO_FILENAME);
+    
+    // Bersihkan nama file dari karakter tidak aman
+    $base_name = preg_replace('/[^a-zA-Z0-9-_]/', '', $base_name);
+    $base_name = substr($base_name, 0, 50); // Batasi panjang
+    
+    // Generate nama dengan timestamp dan random
+    $timestamp = time();
+    $random = substr(md5(uniqid(rand(), true)), 0, 8);
+    $filename = $base_name . '_' . $timestamp . '_' . $random . '.' . $extension;
+    
+    // Pastikan file tidak ada (double check)
+    $counter = 1;
+    $original_filename = $filename;
+    while (file_exists($directory . $filename)) {
+        $filename = pathinfo($original_filename, PATHINFO_FILENAME) . '_' . $counter . '.' . $extension;
+        $counter++;
+    }
+    
+    return $filename;
+}
+
+/**
+ * Delete file safely with validation
  */
 function deleteFile($filepath) {
-    if (file_exists($filepath) && is_file($filepath)) {
-        return unlink($filepath);
+    if (empty($filepath)) {
+        return false;
     }
-    return false;
+    
+    // Pastikan file ada dan di dalam directory yang diizinkan
+    if (!file_exists($filepath) || !is_file($filepath)) {
+        return false;
+    }
+    
+    // Validasi path untuk keamanan (tidak boleh keluar dari upload directory)
+    $real_path = realpath($filepath);
+    $upload_real_path = realpath(UPLOAD_PATH);
+    
+    if ($real_path === false || $upload_real_path === false) {
+        return false;
+    }
+    
+    if (strpos($real_path, $upload_real_path) !== 0) {
+        error_log("Attempted to delete file outside upload directory: " . $filepath);
+        return false;
+    }
+    
+    return unlink($filepath);
+}
+
+/**
+ * Get file size in human readable format
+ */
+function formatFileSize($bytes) {
+    if ($bytes >= 1073741824) {
+        return number_format($bytes / 1073741824, 2) . ' GB';
+    } elseif ($bytes >= 1048576) {
+        return number_format($bytes / 1048576, 2) . ' MB';
+    } elseif ($bytes >= 1024) {
+        return number_format($bytes / 1024, 2) . ' KB';
+    } else {
+        return $bytes . ' bytes';
+    }
+}
+
+/**
+ * Validate image and get info
+ */
+function validateImage($filepath) {
+    if (!file_exists($filepath)) {
+        return false;
+    }
+    
+    $image_info = getimagesize($filepath);
+    if ($image_info === false) {
+        return false;
+    }
+    
+    return [
+        'width' => $image_info[0],
+        'height' => $image_info[1],
+        'type' => $image_info[2],
+        'mime' => $image_info['mime'],
+        'size' => filesize($filepath),
+        'size_formatted' => formatFileSize(filesize($filepath))
+    ];
+}
+
+/**
+ * Resize image (opsional untuk optimasi)
+ */
+function resizeImage($source_path, $destination_path, $max_width = 800, $max_height = 600, $quality = 85) {
+    $image_info = getimagesize($source_path);
+    if ($image_info === false) {
+        return false;
+    }
+    
+    $original_width = $image_info[0];
+    $original_height = $image_info[1];
+    $image_type = $image_info[2];
+    
+    // Hitung dimensi baru dengan mempertahankan aspect ratio
+    $ratio = min($max_width / $original_width, $max_height / $original_height);
+    $new_width = round($original_width * $ratio);
+    $new_height = round($original_height * $ratio);
+    
+    // Jika sudah kecil, tidak perlu resize
+    if ($ratio >= 1) {
+        return copy($source_path, $destination_path);
+    }
+    
+    // Buat resource gambar sesuai tipe
+    switch ($image_type) {
+        case IMAGETYPE_JPEG:
+            $source_image = imagecreatefromjpeg($source_path);
+            break;
+        case IMAGETYPE_PNG:
+            $source_image = imagecreatefrompng($source_path);
+            break;
+        case IMAGETYPE_GIF:
+            $source_image = imagecreatefromgif($source_path);
+            break;
+        case IMAGETYPE_WEBP:
+            $source_image = imagecreatefromwebp($source_path);
+            break;
+        default:
+            return false;
+    }
+    
+    if (!$source_image) {
+        return false;
+    }
+    
+    // Buat canvas baru
+    $new_image = imagecreatetruecolor($new_width, $new_height);
+    
+    // Untuk PNG dan GIF, pertahankan transparency
+    if ($image_type == IMAGETYPE_PNG || $image_type == IMAGETYPE_GIF) {
+        imagealphablending($new_image, false);
+        imagesavealpha($new_image, true);
+        $transparent = imagecolorallocatealpha($new_image, 255, 255, 255, 127);
+        imagefilledrectangle($new_image, 0, 0, $new_width, $new_height, $transparent);
+    }
+    
+    // Resize
+    imagecopyresampled($new_image, $source_image, 0, 0, 0, 0, $new_width, $new_height, $original_width, $original_height);
+    
+    // Simpan hasil resize
+    $result = false;
+    switch ($image_type) {
+        case IMAGETYPE_JPEG:
+            $result = imagejpeg($new_image, $destination_path, $quality);
+            break;
+        case IMAGETYPE_PNG:
+            $result = imagepng($new_image, $destination_path, 9);
+            break;
+        case IMAGETYPE_GIF:
+            $result = imagegif($new_image, $destination_path);
+            break;
+        case IMAGETYPE_WEBP:
+            $result = imagewebp($new_image, $destination_path, $quality);
+            break;
+    }
+    
+    // Cleanup
+    imagedestroy($source_image);
+    imagedestroy($new_image);
+    
+    return $result;
 }
 
 /**
