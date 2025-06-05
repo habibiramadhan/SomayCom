@@ -17,19 +17,9 @@ try {
     $stmt->execute();
     $low_stock_products = $stmt->fetchColumn();
     
-    // Pesan kontak baru (jika tabel ada)
-    try {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM contact_messages WHERE status = 'new'");
-        $stmt->execute();
-        $new_messages = $stmt->fetchColumn();
-    } catch (Exception $e) {
-        $new_messages = 0;
-    }
-    
 } catch (Exception $e) {
     $pending_orders = 0;
     $low_stock_products = 0;
-    $new_messages = 0;
 }
 ?>
 <!-- Sidebar -->
@@ -78,21 +68,6 @@ try {
         <a href="<?php echo getAdminPath(); ?>shipping_area.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo ($current_page === 'shipping_area.php' || strpos($_SERVER['REQUEST_URI'], '/shipping_area') !== false) ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-truck w-6"></i>
             <span>Area Pengiriman</span>
-        </a>
-        
-        <!-- Customers -->
-        <a href="<?php echo getAdminPath(); ?>customers.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'customers.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
-            <i class="fas fa-users w-6"></i>
-            <span>Pelanggan</span>
-        </a>
-        
-        <!-- Contact Messages -->
-        <a href="<?php echo getAdminPath(); ?>contact_messages.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'contact_messages.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
-            <i class="fas fa-envelope w-6"></i>
-            <span>Pesan Kontak</span>
-            <?php if ($new_messages > 0): ?>
-            <span class="ml-auto bg-blue-500 text-white text-xs px-2 py-1 rounded-full"><?php echo $new_messages; ?></span>
-            <?php endif; ?>
         </a>
         
         <!-- Stock Movements -->
