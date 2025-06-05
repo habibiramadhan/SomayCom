@@ -1,4 +1,5 @@
 <?php
+// admin/includes/sidebar.php
 // Dapatkan nama file saat ini untuk menentukan menu aktif
 $current_page = basename($_SERVER['PHP_SELF']);
 
@@ -58,6 +59,12 @@ try {
             <?php endif; ?>
         </a>
         
+        <!-- Categories -->
+        <a href="<?php echo getAdminPath(); ?>category.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo ($current_page === 'category.php' || strpos($_SERVER['REQUEST_URI'], '/category') !== false) ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+            <i class="fas fa-tags w-6"></i>
+            <span>Kategori</span>
+        </a>
+        
         <!-- Orders -->
         <a href="<?php echo getAdminPath(); ?>orders.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'orders.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-shopping-cart w-6"></i>
@@ -65,12 +72,6 @@ try {
             <?php if ($pending_orders > 0): ?>
             <span class="ml-auto bg-yellow-500 text-white text-xs px-2 py-1 rounded-full"><?php echo $pending_orders; ?></span>
             <?php endif; ?>
-        </a>
-        
-        <!-- Categories -->
-        <a href="<?php echo getAdminPath(); ?>categories.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'categories.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
-            <i class="fas fa-tags w-6"></i>
-            <span>Kategori</span>
         </a>
         
         <!-- Shipping Areas -->
@@ -103,6 +104,12 @@ try {
         <!-- Divider -->
         <div class="border-t border-gray-700 my-4"></div>
         
+        <!-- Reports -->
+        <a href="<?php echo getAdminPath(); ?>reports.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'reports.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
+            <i class="fas fa-chart-bar w-6"></i>
+            <span>Laporan</span>
+        </a>
+        
         <!-- Settings -->
         <a href="<?php echo getAdminPath(); ?>settings.php" class="flex items-center px-6 py-3 transition-colors duration-200 <?php echo $current_page === 'settings.php' ? 'text-white bg-primary/20 border-r-4 border-primary' : 'text-gray-300 hover:bg-gray-700 hover:text-white'; ?>">
             <i class="fas fa-cog w-6"></i>
@@ -132,9 +139,11 @@ try {
  * Helper function to get admin path based on current location
  */
 function getAdminPath() {
-    // Jika kita di subfolder (seperti /product/), kembali ke admin root
+    // Jika kita di subfolder (seperti /product/, /category/), kembali ke admin root
     if (strpos($_SERVER['REQUEST_URI'], '/product/') !== false || 
-        strpos($_SERVER['PHP_SELF'], '/product/') !== false) {
+        strpos($_SERVER['PHP_SELF'], '/product/') !== false ||
+        strpos($_SERVER['REQUEST_URI'], '/category/') !== false || 
+        strpos($_SERVER['PHP_SELF'], '/category/') !== false) {
         return '../';
     }
     // Jika sudah di admin root

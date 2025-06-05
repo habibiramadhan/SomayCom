@@ -1,3 +1,4 @@
+<!-- controllers/ProductController.php -->
 <?php
 require_once '../models/Product.php';
 

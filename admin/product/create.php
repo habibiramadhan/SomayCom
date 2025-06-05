@@ -1,3 +1,4 @@
+<!-- admin/product/create.php -->
 <?php
 // Set page title
 $page_title = 'Tambah Produk';
