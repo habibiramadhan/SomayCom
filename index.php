@@ -498,10 +498,10 @@ try {
                     <span class="font-semibold">Total:</span>
                     <span id="cart-total" class="font-bold text-lg text-primary">Rp 0</span>
                 </div>
-                <a href="pages/checkout.php" class="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-orange-600 transition-colors inline-flex items-center justify-center">
+                <button id="checkout-btn" class="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-orange-600 transition-colors inline-flex items-center justify-center">
                     <i class="fas fa-shopping-cart mr-2"></i>
                     Checkout
-                </a>
+                </button>
             </div>
         </div>
     
@@ -575,6 +575,20 @@ try {
         // Cart functionality
         let cart = [];
 
+        // Load cart from localStorage when page loads
+        function loadCart() {
+            const savedCart = localStorage.getItem('cart');
+            if (savedCart) {
+                cart = JSON.parse(savedCart);
+            }
+            updateCartUI();
+        }
+
+        // Save cart to localStorage whenever it changes
+        function saveCart() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+
         function addToCart(productId, productName, productPrice) {
             const existingItem = cart.find(item => item.id === productId);
             if (existingItem) {
@@ -583,6 +597,7 @@ try {
                 cart.push({id: productId, name: productName, price: productPrice, quantity: 1});
             }
             updateCartUI();
+            saveCart(); // Save cart after adding item
             showNotification('Produk ditambahkan ke keranjang!');
         }
 
@@ -614,6 +629,7 @@ try {
         function removeFromCart(productId) {
             cart = cart.filter(item => item.id !== productId);
             updateCartUI();
+            saveCart(); // Save cart after removing item
         }
 
         function toggleCart() {
@@ -630,7 +646,6 @@ try {
         }
 
         function showNotification(message) {
-            // Create notification element
             const notification = document.createElement('div');
             notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform';
             notification.innerHTML = `
@@ -642,12 +657,10 @@ try {
             
             document.body.appendChild(notification);
             
-            // Show notification
             setTimeout(() => {
                 notification.classList.remove('translate-x-full');
             }, 100);
             
-            // Hide notification after 3 seconds
             setTimeout(() => {
                 notification.classList.add('translate-x-full');
                 setTimeout(() => {
@@ -656,10 +669,10 @@ try {
             }, 3000);
         }
 
-        // Initialize page
+        // Initialize when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
             loadFeaturedProducts();
-            updateCartUI();
+            loadCart(); // Load cart when page loads
         });
 
         // Smooth scrolling for anchor links
@@ -675,6 +688,29 @@ try {
                 }
             });
         });
+
+        // Tambahkan event listener untuk tombol checkout
+        if (document.getElementById('checkout-btn')) {
+            document.getElementById('checkout-btn').addEventListener('click', function(e) {
+                e.preventDefault();
+                const cart = localStorage.getItem('cart');
+                if (!cart || JSON.parse(cart).length === 0) {
+                    alert('Keranjang kosong!');
+                    return;
+                }
+                // Kirim cart ke server via form POST
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'pages/cart-to-session.php';
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'cart';
+                input.value = cart;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            });
+        }
     </script>
 </body>
 </html>
